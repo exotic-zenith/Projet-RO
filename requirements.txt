@@ -1,0 +1,18 @@
+# Python dependencies for Agricultural Optimization Project
+
+# Core optimization
+gurobipy>=10.0.0
+
+# Standard library (included with Python, listed for reference)
+# - json
+# - csv
+# - dataclasses
+# - typing
+# - pathlib
+# - datetime
+# - math
+# - enum
+
+# Optional: for future GUI development
+# PyQt6>=6.4.0
+# matplotlib>=3.5.0
