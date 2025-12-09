@@ -1,22 +1,23 @@
 """
 Main Application Entry Point
-Demonstrates complete workflow: load data, validate, optimize, analyze results.
+Supports both CLI and GUI modes for optimization workflow.
 """
 
+import sys
+import argparse
 from agricultural_model import AgriculturalProblem
 from optimizer import AgriculturalOptimizer
 from solution_handler import SolutionHandler
 from validator import ProblemValidator
 from data_manager import DataManager
 from test_cases import get_test_scenario, print_scenario_info
-import sys
 
 
 def run_optimization_example(scenario_name: str = "intermediate", 
                              use_advanced_constraints: bool = False,
                              export_results: bool = True):
     """
-    Run a complete optimization example.
+    Run a complete optimization example in CLI mode.
     
     Args:
         scenario_name: "basic", "intermediate", or "advanced"
@@ -24,7 +25,7 @@ def run_optimization_example(scenario_name: str = "intermediate",
         export_results: Whether to export results to files
     """
     print("\n" + "="*80)
-    print("AGRICULTURAL PRODUCTION PLANNING - OPTIMIZATION SYSTEM")
+    print("AGRICULTURAL PRODUCTION PLANNING - OPTIMIZATION SYSTEM (CLI MODE)")
     print("="*80)
     
     # Step 1: Load problem
@@ -196,41 +197,79 @@ def demonstrate_all_scenarios():
 
 def main():
     """
-    Main entry point.
+    Main entry point with command line argument parsing.
+    Supports both CLI and GUI modes.
     """
-    if len(sys.argv) > 1:
-        command = sys.argv[1].lower()
+    parser = argparse.ArgumentParser(
+        description="Agricultural Production Optimizer - CLI and GUI",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python main.py gui                        # Launch GUI application
+  python main.py cli demo                   # Run all scenarios (CLI)
+  python main.py cli basic                  # Run basic scenario (CLI)
+  python main.py cli intermediate           # Run intermediate scenario (CLI)
+  python main.py cli advanced               # Run advanced scenario (CLI)
+  python main.py cli <scenario> --advanced  # Add advanced constraints
+  python main.py cli interactive            # Interactive CLI mode
+  python main.py cli templates              # Create data templates
+        """
+    )
+    
+    parser.add_argument(
+        "mode",
+        nargs="?",
+        default="cli",
+        choices=["gui", "cli"],
+        help="Run mode: 'gui' for GUI application or 'cli' for command line"
+    )
+    
+    parser.add_argument(
+        "scenario",
+        nargs="?",
+        default="intermediate",
+        help="Scenario to run: basic, intermediate, advanced, demo, interactive, or templates"
+    )
+    
+    parser.add_argument(
+        "--advanced",
+        action="store_true",
+        help="Add advanced constraints to the model"
+    )
+    
+    args = parser.parse_args()
+    
+    if args.mode == "gui":
+        # Launch GUI application
+        print("Launching Agricultural Optimizer GUI...")
+        try:
+            from gui import main as gui_main
+            gui_main()
+        except ImportError:
+            print("Error: PyQt6 is not installed. Install it with:")
+            print("  pip install PyQt6")
+            sys.exit(1)
+        except Exception as e:
+            print(f"Error launching GUI: {e}")
+            sys.exit(1)
+    
+    else:  # CLI mode
+        scenario = args.scenario.lower()
         
-        if command == 'demo':
-            # Run all scenarios
+        if scenario == 'demo':
             demonstrate_all_scenarios()
-        elif command in ['basic', 'intermediate', 'advanced']:
-            # Run specific scenario
-            use_advanced = '--advanced' in sys.argv
-            run_optimization_example(command, use_advanced_constraints=use_advanced)
-        elif command == 'interactive':
-            # Interactive mode
+        elif scenario in ['basic', 'intermediate', 'advanced']:
+            run_optimization_example(scenario, use_advanced_constraints=args.advanced)
+        elif scenario == 'interactive':
             interactive_mode()
-        elif command == 'templates':
-            # Create data templates
+        elif scenario == 'templates':
             print("Creating data template files...")
             DataManager.create_template_files("data_templates")
             print("✓ Template files created in 'data_templates' directory")
         else:
-            print(f"Unknown command: {command}")
-            print("\nUsage:")
-            print("  python main.py demo                    # Run all scenarios")
-            print("  python main.py basic                   # Run basic scenario")
-            print("  python main.py intermediate            # Run intermediate scenario")
-            print("  python main.py advanced                # Run advanced scenario")
-            print("  python main.py <scenario> --advanced   # Add advanced constraints")
-            print("  python main.py interactive             # Interactive mode")
-            print("  python main.py templates               # Create data templates")
-    else:
-        # Default: run intermediate scenario
-        print("Running default scenario (intermediate)...")
-        print("Use 'python main.py --help' for more options\n")
-        run_optimization_example('intermediate', use_advanced_constraints=False)
+            print(f"Unknown scenario: {scenario}")
+            parser.print_help()
+            sys.exit(1)
 
 
 if __name__ == "__main__":

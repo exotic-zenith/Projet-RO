@@ -3,6 +3,12 @@
 # Core optimization
 gurobipy>=10.0.0
 
+# GUI
+PyQt6>=6.4.0
+
+# Visualization (optional)
+matplotlib>=3.5.0
+
 # Standard library (included with Python, listed for reference)
 # - json
 # - csv
@@ -12,7 +18,3 @@ gurobipy>=10.0.0
 # - datetime
 # - math
 # - enum
-
-# Optional: for future GUI development
-# PyQt6>=6.4.0
-# matplotlib>=3.5.0
