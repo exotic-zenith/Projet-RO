@@ -345,6 +345,99 @@ class DataManager:
         print(f"Parcels saved to {filepath}")
     
     @staticmethod
+    def load_problem_from_scenario_folder(scenario_folder: str) -> AgriculturalProblem:
+        """
+        Load a complete problem from a scenario folder containing CSV files.
+        
+        Expected files in the folder:
+        - crops.csv: Crop data
+        - parcels.csv: Parcel data
+        - constraints.csv: Constraints and settings (parameter,value format)
+        
+        Args:
+            scenario_folder: Path to folder containing scenario CSV files
+            
+        Returns:
+            AgriculturalProblem instance
+        """
+        scenario_path = Path(scenario_folder)
+        
+        # Load crops
+        crops = DataManager.load_crops_from_csv(str(scenario_path / "crops.csv"))
+        
+        # Load parcels
+        parcels = DataManager.load_parcels_from_csv(str(scenario_path / "parcels.csv"))
+        
+        # Load constraints from CSV
+        constraints_data = {}
+        with open(scenario_path / "constraints.csv", 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                param = row['parameter']
+                value = row['value']
+                
+                # Convert value to appropriate type
+                if value.lower() in ['true', 'false']:
+                    constraints_data[param] = value.lower() == 'true'
+                elif value.replace('.', '', 1).replace('-', '', 1).isdigit():
+                    # Try to parse as number
+                    if '.' in value:
+                        constraints_data[param] = float(value)
+                    else:
+                        constraints_data[param] = int(value)
+                else:
+                    constraints_data[param] = value
+        
+        # Create ResourceConstraints
+        constraints = ResourceConstraints(
+            total_budget=constraints_data.get('total_budget', 100000),
+            total_water=constraints_data.get('total_water', 20000),
+            total_labor_hours=constraints_data.get('total_labor_hours', 2000),
+            total_fertilizer=constraints_data.get('total_fertilizer', float('inf')),
+            total_pesticide=constraints_data.get('total_pesticide', float('inf')),
+            min_crop_diversity=constraints_data.get('min_crop_diversity', 1),
+            max_crop_diversity=constraints_data.get('max_crop_diversity'),
+            labor_cost_per_hour=constraints_data.get('labor_cost_per_hour', 15.0),
+            water_cost_per_m3=constraints_data.get('water_cost_per_m3', 0.5)
+        )
+        
+        # Create problem with settings from constraints.csv
+        problem = AgriculturalProblem(
+            crops=crops,
+            parcels=parcels,
+            constraints=constraints,
+            enable_rotation=constraints_data.get('enable_rotation', False)
+        )
+        
+        return problem
+    
+    @staticmethod
+    def get_available_scenarios(scenarios_dir: str = "scenarios") -> List[str]:
+        """
+        Get list of available scenario names in the scenarios directory.
+        
+        Args:
+            scenarios_dir: Path to scenarios directory
+            
+        Returns:
+            List of scenario folder names
+        """
+        scenarios_path = Path(scenarios_dir)
+        if not scenarios_path.exists():
+            return []
+        
+        scenarios = []
+        for item in scenarios_path.iterdir():
+            if item.is_dir():
+                # Check if it has the required CSV files
+                if (item / "crops.csv").exists() and \
+                   (item / "parcels.csv").exists() and \
+                   (item / "constraints.csv").exists():
+                    scenarios.append(item.name)
+        
+        return sorted(scenarios)
+    
+    @staticmethod
     def create_template_files(output_dir: str = "."):
         """
         Create template CSV files for data entry.

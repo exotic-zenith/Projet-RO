@@ -1,0 +1,4 @@
+id,area,soil_type,has_irrigation,water_capacity,is_divisible,previous_crop_rotation_group,quality_factor,slope_percentage
+P1,40,loamy,true,18000,true,2,1.1,1
+P2,35,sandy,true,14000,true,3,0.95,4
+P3,25,silty,true,12000,true,1,1.0,2

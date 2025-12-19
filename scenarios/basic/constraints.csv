@@ -1,0 +1,11 @@
+parameter,value
+total_budget,150000
+total_water,30000
+total_labor_hours,3000
+total_fertilizer,15000
+total_pesticide,500
+min_crop_diversity,2
+max_crop_diversity,3
+labor_cost_per_hour,15
+water_cost_per_m3,0.5
+enable_rotation,false

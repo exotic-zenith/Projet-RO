@@ -1,0 +1,8 @@
+name,profit_per_hectare,water_requirement,labor_hours,cost_per_hectare,growth_duration_days,preferred_soil_types,planting_season,min_area,max_area,rotation_group,fertilizer_need,pesticide_need
+Wheat,2600,320,28,850,120,"loamy,clay",fall,12,45,2,160,6
+Barley,2200,280,22,700,110,"loamy,sandy",fall,10,35,2,140,5
+Corn,3400,480,38,1300,95,"loamy,clay",spring,15,50,2,220,9
+Soybean,3000,370,24,750,105,"loamy,silty",spring,12,40,1,70,4
+Tomato,6000,650,65,2200,80,"loamy,silty",spring,5,20,3,280,15
+Potato,4500,530,48,1600,90,"sandy,loamy",spring,8,28,3,200,11
+Sunflower,3800,420,30,900,100,"sandy,loamy",spring,10,35,4,120,6

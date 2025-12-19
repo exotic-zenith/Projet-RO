@@ -65,6 +65,8 @@ class SolverWorker(QThread):
 class InputDataWidget(QWidget):
     """Widget for inputting agricultural problem data"""
     
+    scenario_loaded = pyqtSignal(AgriculturalProblem)  # Signal for when a scenario is loaded
+    
     def __init__(self):
         super().__init__()
         self.crops_list = []
@@ -74,6 +76,46 @@ class InputDataWidget(QWidget):
     def init_ui(self):
         """Initialize the input data interface"""
         layout = QVBoxLayout()
+        
+        # Scenario selector at the top
+        scenario_group = QGroupBox("📁 Load Pre-configured Scenario")
+        scenario_group.setObjectName("scenarioGroup")
+        scenario_layout = QHBoxLayout()
+        scenario_layout.setSpacing(12)
+        
+        label = QLabel("Select Scenario:")
+        label.setStyleSheet("font-weight: 600;")
+        scenario_layout.addWidget(label)
+        
+        self.scenario_combo = QComboBox()
+        self.scenario_combo.setMinimumWidth(200)
+        self.scenario_combo.addItem("-- Manual Input --", None)
+        
+        # Load available scenarios from scenarios folder
+        from data_manager import DataManager
+        available_scenarios = DataManager.get_available_scenarios("scenarios")
+        for scenario in available_scenarios:
+            self.scenario_combo.addItem(f"🌾 {scenario.capitalize()}", scenario)
+        
+        scenario_layout.addWidget(self.scenario_combo)
+        
+        load_scenario_btn = QPushButton("📥 Load Scenario")
+        load_scenario_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #27ae60;
+                padding: 10px 24px;
+                font-size: 10pt;
+            }
+            QPushButton:hover {
+                background-color: #229954;
+            }
+        """)
+        load_scenario_btn.clicked.connect(self.load_selected_scenario)
+        scenario_layout.addWidget(load_scenario_btn)
+        
+        scenario_layout.addStretch()
+        scenario_group.setLayout(scenario_layout)
+        layout.addWidget(scenario_group)
         
         # Tabs for different input sections
         tabs = QTabWidget()
@@ -107,17 +149,31 @@ class InputDataWidget(QWidget):
         ])
         self.crops_table.setRowCount(5)
         
-        layout.addWidget(QLabel("Crops Configuration:"))
+        label = QLabel("🌾 Crops Configuration:")
+        label.setStyleSheet("font-weight: 600; font-size: 11pt; color: #546e7a; padding: 8px;")
+        layout.addWidget(label)
         layout.addWidget(self.crops_table)
         
         # Buttons
         btn_layout = QHBoxLayout()
-        add_btn = QPushButton("Add Row")
+        btn_layout.setSpacing(10)
+        add_btn = QPushButton("➕ Add Row")
+        add_btn.setMinimumHeight(35)
         add_btn.clicked.connect(self.add_crop_row)
-        remove_btn = QPushButton("Remove Row")
+        remove_btn = QPushButton("➖ Remove Row")
+        remove_btn.setMinimumHeight(35)
+        remove_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #e74c3c;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+        """)
         remove_btn.clicked.connect(self.remove_crop_row)
         btn_layout.addWidget(add_btn)
         btn_layout.addWidget(remove_btn)
+        btn_layout.addStretch()
         layout.addLayout(btn_layout)
         
         widget.setLayout(layout)
@@ -136,17 +192,31 @@ class InputDataWidget(QWidget):
         ])
         self.parcels_table.setRowCount(5)
         
-        layout.addWidget(QLabel("Parcels Configuration:"))
+        label = QLabel("🗺️ Parcels Configuration:")
+        label.setStyleSheet("font-weight: 600; font-size: 11pt; color: #546e7a; padding: 8px;")
+        layout.addWidget(label)
         layout.addWidget(self.parcels_table)
         
         # Buttons
         btn_layout = QHBoxLayout()
-        add_btn = QPushButton("Add Row")
+        btn_layout.setSpacing(10)
+        add_btn = QPushButton("➕ Add Row")
+        add_btn.setMinimumHeight(35)
         add_btn.clicked.connect(self.add_parcel_row)
-        remove_btn = QPushButton("Remove Row")
+        remove_btn = QPushButton("➖ Remove Row")
+        remove_btn.setMinimumHeight(35)
+        remove_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #e74c3c;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+        """)
         remove_btn.clicked.connect(self.remove_parcel_row)
         btn_layout.addWidget(add_btn)
         btn_layout.addWidget(remove_btn)
+        btn_layout.addStretch()
         layout.addLayout(btn_layout)
         
         widget.setLayout(layout)
@@ -310,6 +380,56 @@ class InputDataWidget(QWidget):
             water_cost_per_m3=self.water_cost_input.value(),
             min_crop_diversity=self.min_crop_diversity_input.value()
         )
+    
+    def load_selected_scenario(self):
+        """Load the selected scenario from CSV files"""
+        scenario_name = self.scenario_combo.currentData()
+        
+        if scenario_name is None:
+            QMessageBox.information(
+                self,
+                "Info",
+                "Please select a scenario from the dropdown to load."
+            )
+            return
+        
+        try:
+            from data_manager import DataManager
+            import os
+            
+            # Build the scenario folder path
+            scenario_folder = os.path.join("scenarios", scenario_name)
+            
+            # Load the problem from CSV files
+            problem = DataManager.load_problem_from_scenario_folder(scenario_folder)
+            
+            # Load data into the GUI tables
+            self.load_crops_to_table(problem.crops)
+            self.load_parcels_to_table(problem.parcels)
+            self.load_constraints(problem.constraints)
+            
+            # Emit signal with the loaded problem
+            self.scenario_loaded.emit(problem)
+            
+            QMessageBox.information(
+                self,
+                "Scenario Loaded",
+                f"Successfully loaded '{scenario_name}' scenario:\n\n"
+                f"• {len(problem.crops)} crops\n"
+                f"• {len(problem.parcels)} parcels\n"
+                f"• Budget: {problem.constraints.total_budget:,.0f}\n"
+                f"• Water: {problem.constraints.total_water:,.0f} m³\n"
+                f"• Labor: {problem.constraints.total_labor_hours:,.0f} hours\n"
+                f"• Rotation enabled: {problem.enable_rotation}\n\n"
+                f"You can now modify the data in the tables or solve directly."
+            )
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Error Loading Scenario",
+                f"Failed to load scenario '{scenario_name}':\n\n{str(e)}"
+            )
 
 
 class SolverControlWidget(QWidget):
@@ -327,40 +447,82 @@ class SolverControlWidget(QWidget):
     def init_ui(self):
         """Initialize the solver control interface"""
         layout = QVBoxLayout()
+        layout.setSpacing(20)
         
-        # Status and progress
-        self.status_label = QLabel("Ready to optimize")
-        layout.addWidget(self.status_label)
+        # Status card
+        status_group = QGroupBox("📊 Solver Status")
+        status_group.setObjectName("solverStatusGroup")
+        status_layout = QVBoxLayout()
+        
+        self.status_label = QLabel("⚡ Ready to optimize")
+        self.status_label.setObjectName("solverStatusLabel")
+        self.status_label.setStyleSheet("font-size: 12pt; color: #27ae60; font-weight: 600; padding: 10px;")
+        status_layout.addWidget(self.status_label)
         
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
-        layout.addWidget(self.progress_bar)
+        self.progress_bar.setMinimumHeight(25)
+        status_layout.addWidget(self.progress_bar)
         
-        # Time limit
-        time_layout = QHBoxLayout()
-        time_layout.addWidget(QLabel("Solver Time Limit (seconds):"))
+        status_group.setLayout(status_layout)
+        layout.addWidget(status_group)
+        
+        # Settings card
+        settings_group = QGroupBox("⚙️ Solver Settings")
+        settings_group.setObjectName("solverSettingsGroup")
+        settings_layout = QFormLayout()
+        settings_layout.setSpacing(12)
+        
+        time_label = QLabel("Time Limit:")
+        time_label.setStyleSheet("font-weight: 600;")
         self.time_limit_spin = QSpinBox()
         self.time_limit_spin.setMaximum(3600)
         self.time_limit_spin.setValue(300)
-        time_layout.addWidget(self.time_limit_spin)
-        time_layout.addStretch()
-        layout.addLayout(time_layout)
+        self.time_limit_spin.setSuffix(" seconds")
+        self.time_limit_spin.setMinimumWidth(150)
+        settings_layout.addRow(time_label, self.time_limit_spin)
         
-        # Buttons
-        btn_layout = QHBoxLayout()
+        settings_group.setLayout(settings_layout)
+        layout.addWidget(settings_group)
         
-        self.solve_btn = QPushButton("🚀 Solve Optimization")
-        self.solve_btn.setMinimumHeight(40)
+        # Action buttons
+        btn_group = QGroupBox("🎯 Actions")
+        btn_group.setObjectName("solverActionsGroup")
+        btn_layout = QVBoxLayout()
+        btn_layout.setSpacing(12)
+        
+        self.solve_btn = QPushButton("🚀 Start Optimization")
+        self.solve_btn.setMinimumHeight(50)
+        self.solve_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #27ae60;
+                font-size: 12pt;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background-color: #229954;
+            }
+        """)
         self.solve_btn.clicked.connect(self.start_optimization)
         btn_layout.addWidget(self.solve_btn)
         
-        self.stop_btn = QPushButton("⏹ Stop")
-        self.stop_btn.setMinimumHeight(40)
+        self.stop_btn = QPushButton("⏹ Stop Optimization")
+        self.stop_btn.setMinimumHeight(45)
         self.stop_btn.setEnabled(False)
+        self.stop_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #e74c3c;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+        """)
         self.stop_btn.clicked.connect(self.stop_optimization)
         btn_layout.addWidget(self.stop_btn)
         
-        layout.addLayout(btn_layout)
+        btn_group.setLayout(btn_layout)
+        layout.addWidget(btn_group)
+        
         layout.addStretch()
         
         self.setLayout(layout)
@@ -469,16 +631,41 @@ class ResultsWidget(QWidget):
         
         layout.addWidget(tabs)
         
-        # Export buttons
+        # Export buttons with better styling
+        export_group = QGroupBox("💾 Export Results")
+        export_group.setObjectName("exportGroup")
         btn_layout = QHBoxLayout()
-        export_json_btn = QPushButton("Export to JSON")
+        btn_layout.setSpacing(12)
+        
+        export_json_btn = QPushButton("📄 Export to JSON")
+        export_json_btn.setMinimumHeight(40)
+        export_json_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #9b59b6;
+            }
+            QPushButton:hover {
+                background-color: #8e44ad;
+            }
+        """)
         export_json_btn.clicked.connect(self.export_json)
-        export_csv_btn = QPushButton("Export to CSV")
-        export_csv_btn.clicked.connect(self.export_csv)
         btn_layout.addWidget(export_json_btn)
+        
+        export_csv_btn = QPushButton("📊 Export to CSV")
+        export_csv_btn.setMinimumHeight(40)
+        export_csv_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #16a085;
+            }
+            QPushButton:hover {
+                background-color: #138d75;
+            }
+        """)
+        export_csv_btn.clicked.connect(self.export_csv)
         btn_layout.addWidget(export_csv_btn)
+        
         btn_layout.addStretch()
-        layout.addLayout(btn_layout)
+        export_group.setLayout(btn_layout)
+        layout.addWidget(export_group)
         
         self.setLayout(layout)
     
@@ -668,11 +855,376 @@ Optimization Time: {self.solution.get('solve_time', 0):.2f} seconds
         if file_path:
             try:
                 if self.problem:
-                    handler = SolutionHandler(self.problem, self.solution)
+                    # Convert solution format if needed (allocation_matrix -> allocation)
+                    solution_copy = self.solution.copy()
+                    if 'allocation_matrix' in solution_copy and 'allocation' not in solution_copy:
+                        solution_copy['allocation'] = solution_copy['allocation_matrix']
+                    
+                    handler = SolutionHandler(self.problem, solution_copy)
                     handler.export_to_csv(file_path.replace('.csv', ''))
                 QMessageBox.information(self, "Success", f"Results exported to {file_path}")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to export: {str(e)}")
+
+
+class InsightsWidget(QWidget):
+    """Widget for displaying optimization insights and analytics"""
+    
+    def __init__(self):
+        super().__init__()
+        self.solution = None
+        self.problem = None
+        self.init_ui()
+    
+    def init_ui(self):
+        """Initialize the insights interface"""
+        layout = QVBoxLayout()
+        
+        # Main scroll area for insights
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout()
+        
+        # Title
+        title = QLabel("📊 Optimization Insights & Analytics")
+        title_font = title.font()
+        title_font.setPointSize(14)
+        title_font.setBold(True)
+        title.setFont(title_font)
+        scroll_layout.addWidget(title)
+        
+        # Efficiency Analysis Section
+        efficiency_group = QGroupBox("⚡ Resource Efficiency Analysis")
+        efficiency_group.setObjectName("efficiencyGroup")
+        self.efficiency_text = QtWidgets.QTextEdit()
+        self.efficiency_text.setReadOnly(True)
+        self.efficiency_text.setMinimumHeight(180)
+        self.efficiency_text.setMaximumHeight(180)
+        self.efficiency_text.setObjectName("insightText")
+        efficiency_layout = QVBoxLayout()
+        efficiency_layout.addWidget(self.efficiency_text)
+        efficiency_group.setLayout(efficiency_layout)
+        scroll_layout.addWidget(efficiency_group)
+        scroll_layout.addSpacing(15)
+        
+        # Bottleneck Analysis Section
+        bottleneck_group = QGroupBox("🔍 Bottleneck Analysis")
+        bottleneck_group.setObjectName("bottleneckGroup")
+        self.bottleneck_text = QtWidgets.QTextEdit()
+        self.bottleneck_text.setReadOnly(True)
+        self.bottleneck_text.setMinimumHeight(140)
+        self.bottleneck_text.setMaximumHeight(140)
+        self.bottleneck_text.setObjectName("insightText")
+        bottleneck_layout = QVBoxLayout()
+        bottleneck_layout.addWidget(self.bottleneck_text)
+        bottleneck_group.setLayout(bottleneck_layout)
+        scroll_layout.addWidget(bottleneck_group)
+        scroll_layout.addSpacing(15)
+        
+        # Crop Performance Section
+        crop_performance_group = QGroupBox("🌾 Crop Performance Analysis")
+        crop_performance_group.setObjectName("cropPerformanceGroup")
+        self.crop_performance_text = QtWidgets.QTextEdit()
+        self.crop_performance_text.setReadOnly(True)
+        self.crop_performance_text.setMinimumHeight(200)
+        self.crop_performance_text.setMaximumHeight(200)
+        self.crop_performance_text.setObjectName("insightText")
+        crop_performance_layout = QVBoxLayout()
+        crop_performance_layout.addWidget(self.crop_performance_text)
+        crop_performance_group.setLayout(crop_performance_layout)
+        scroll_layout.addWidget(crop_performance_group)
+        scroll_layout.addSpacing(15)
+        
+        # Land Utilization Section
+        land_group = QGroupBox("🗺️ Land Utilization Analysis")
+        land_group.setObjectName("landGroup")
+        self.land_text = QtWidgets.QTextEdit()
+        self.land_text.setReadOnly(True)
+        self.land_text.setMinimumHeight(180)
+        self.land_text.setMaximumHeight(180)
+        self.land_text.setObjectName("insightText")
+        land_layout = QVBoxLayout()
+        land_layout.addWidget(self.land_text)
+        land_group.setLayout(land_layout)
+        scroll_layout.addWidget(land_group)
+        scroll_layout.addSpacing(15)
+        
+        # Diversity Analysis Section
+        diversity_group = QGroupBox("🌈 Crop Diversity Analysis")
+        diversity_group.setObjectName("diversityGroup")
+        self.diversity_text = QtWidgets.QTextEdit()
+        self.diversity_text.setReadOnly(True)
+        self.diversity_text.setMinimumHeight(120)
+        self.diversity_text.setMaximumHeight(120)
+        self.diversity_text.setObjectName("insightText")
+        diversity_layout = QVBoxLayout()
+        diversity_layout.addWidget(self.diversity_text)
+        diversity_group.setLayout(diversity_layout)
+        scroll_layout.addWidget(diversity_group)
+        scroll_layout.addSpacing(15)
+        
+        # Recommendations Section
+        recommendations_group = QGroupBox("💡 Recommendations")
+        recommendations_group.setObjectName("recommendationsGroup")
+        self.recommendations_text = QtWidgets.QTextEdit()
+        self.recommendations_text.setReadOnly(True)
+        self.recommendations_text.setMinimumHeight(180)
+        self.recommendations_text.setMaximumHeight(180)
+        self.recommendations_text.setObjectName("insightText")
+        recommendations_layout = QVBoxLayout()
+        recommendations_layout.addWidget(self.recommendations_text)
+        recommendations_group.setLayout(recommendations_layout)
+        scroll_layout.addWidget(recommendations_group)
+        scroll_layout.addSpacing(20)
+        
+        scroll_layout.addStretch()
+        scroll_content.setLayout(scroll_layout)
+        scroll.setWidget(scroll_content)
+        layout.addWidget(scroll)
+        
+        self.setLayout(layout)
+    
+    def display_insights(self, problem: AgriculturalProblem, solution: dict):
+        """Generate and display insights from optimization results"""
+        self.problem = problem
+        self.solution = solution
+        
+        self.analyze_efficiency()
+        self.analyze_bottlenecks()
+        self.analyze_crop_performance()
+        self.analyze_land_utilization()
+        self.analyze_diversity()
+        self.generate_recommendations()
+    
+    def analyze_efficiency(self):
+        """Analyze resource efficiency"""
+        if not self.solution or not self.problem:
+            return
+        
+        # Calculate utilization percentages
+        land_used = self.solution.get('total_area', 0)
+        land_available = sum(p.area for p in self.problem.parcels)
+        land_util = (land_used / land_available * 100) if land_available > 0 else 0
+        
+        water_used = self.solution.get('total_water', 0)
+        water_available = self.problem.constraints.total_water
+        water_util = (water_used / water_available * 100) if water_available > 0 else 0
+        
+        labor_used = self.solution.get('total_labor', 0)
+        labor_available = self.problem.constraints.total_labor_hours
+        labor_util = (labor_used / labor_available * 100) if labor_available > 0 else 0
+        
+        cost_used = self.solution.get('total_cost', 0)
+        budget_available = self.problem.constraints.total_budget
+        budget_util = (cost_used / budget_available * 100) if budget_available > 0 else 0
+        
+        # Calculate efficiency metrics
+        profit_per_ha = self.solution.get('total_profit', 0) / land_used if land_used > 0 else 0
+        profit_per_water = self.solution.get('total_profit', 0) / water_used if water_used > 0 else 0
+        profit_per_labor = self.solution.get('total_profit', 0) / labor_used if labor_used > 0 else 0
+        
+        text = f"""
+Resource Utilization:
+  • Land: {land_util:.1f}% ({land_used:.1f}/{land_available:.1f} ha)
+  • Water: {water_util:.1f}% ({water_used:,.0f}/{water_available:,.0f} m³)
+  • Labor: {labor_util:.1f}% ({labor_used:,.0f}/{labor_available:,.0f} hours)
+  • Budget: {budget_util:.1f}% ({cost_used:,.0f}/{budget_available:,.0f})
+
+Efficiency Metrics:
+  • Profit per Hectare: {profit_per_ha:,.2f}
+  • Profit per m³ Water: {profit_per_water:.2f}
+  • Profit per Labor Hour: {profit_per_labor:.2f}
+        """
+        self.efficiency_text.setText(text.strip())
+    
+    def analyze_bottlenecks(self):
+        """Identify resource bottlenecks"""
+        if not self.solution or not self.problem:
+            return
+        
+        # Calculate utilization rates
+        utilizations = {}
+        
+        land_used = self.solution.get('total_area', 0)
+        land_available = sum(p.area for p in self.problem.parcels)
+        utilizations['Land'] = (land_used / land_available * 100) if land_available > 0 else 0
+        
+        water_used = self.solution.get('total_water', 0)
+        water_available = self.problem.constraints.total_water
+        utilizations['Water'] = (water_used / water_available * 100) if water_available > 0 else 0
+        
+        labor_used = self.solution.get('total_labor', 0)
+        labor_available = self.problem.constraints.total_labor_hours
+        utilizations['Labor'] = (labor_used / labor_available * 100) if labor_available > 0 else 0
+        
+        cost_used = self.solution.get('total_cost', 0)
+        budget_available = self.problem.constraints.total_budget
+        utilizations['Budget'] = (cost_used / budget_available * 100) if budget_available > 0 else 0
+        
+        # Identify bottlenecks (>90% utilization)
+        bottlenecks = [name for name, util in utilizations.items() if util > 90]
+        underutilized = [name for name, util in utilizations.items() if util < 50]
+        
+        text = ""
+        if bottlenecks:
+            text += "⚠️ Limiting Constraints (>90% utilized):\n"
+            for resource in bottlenecks:
+                text += f"  • {resource}: {utilizations[resource]:.1f}% - This is constraining your profit!\n"
+        else:
+            text += "✅ No significant bottlenecks detected.\n"
+        
+        if underutilized:
+            text += "\n💡 Underutilized Resources (<50%):\n"
+            for resource in underutilized:
+                text += f"  • {resource}: {utilizations[resource]:.1f}% - Room for expansion!\n"
+        
+        self.bottleneck_text.setText(text.strip())
+    
+    def analyze_crop_performance(self):
+        """Analyze individual crop performance"""
+        if not self.solution or not self.problem:
+            return
+        
+        allocation = self.solution.get('allocation_matrix', {})
+        
+        # Calculate per-crop metrics
+        crop_stats = []
+        for crop_name, parcels in allocation.items():
+            total_area = sum(parcels.values())
+            if total_area > 0:
+                # Find crop object
+                crop = next((c for c in self.problem.crops if c.name == crop_name), None)
+                if crop:
+                    profit = crop.profit_per_hectare * total_area
+                    cost = crop.cost_per_hectare * total_area
+                    roi = ((profit - cost) / cost * 100) if cost > 0 else 0
+                    crop_stats.append({
+                        'name': crop_name,
+                        'area': total_area,
+                        'profit': profit,
+                        'roi': roi,
+                        'profit_per_ha': crop.profit_per_hectare
+                    })
+        
+        # Sort by profit
+        crop_stats.sort(key=lambda x: x['profit'], reverse=True)
+        
+        text = "Top Performing Crops:\n\n"
+        for i, crop in enumerate(crop_stats[:5], 1):
+            text += f"{i}. {crop['name']}: {crop['area']:.1f} ha\n"
+            text += f"   Profit: {crop['profit']:,.0f} | ROI: {crop['roi']:.1f}% | {crop['profit_per_ha']:,.0f}/ha\n\n"
+        
+        self.crop_performance_text.setText(text.strip())
+    
+    def analyze_land_utilization(self):
+        """Analyze land parcel utilization"""
+        if not self.solution or not self.problem:
+            return
+        
+        allocation = self.solution.get('allocation_matrix', {})
+        
+        # Calculate per-parcel utilization
+        parcel_usage = {}
+        for parcel in self.problem.parcels:
+            parcel_usage[parcel.id] = 0
+        
+        for crop_name, parcels in allocation.items():
+            for parcel_id, area in parcels.items():
+                if parcel_id in parcel_usage:
+                    parcel_usage[parcel_id] += area
+        
+        text = "Parcel Utilization:\n\n"
+        for parcel in self.problem.parcels:
+            used = parcel_usage.get(parcel.id, 0)
+            util_pct = (used / parcel.area * 100) if parcel.area > 0 else 0
+            text += f"• {parcel.id}: {used:.1f}/{parcel.area:.1f} ha ({util_pct:.1f}%)\n"
+            text += f"  Soil: {parcel.soil_type.value} | Quality: {parcel.quality_factor}x\n\n"
+        
+        self.land_text.setText(text.strip())
+    
+    def analyze_diversity(self):
+        """Analyze crop diversity"""
+        if not self.solution or not self.problem:
+            return
+        
+        allocation = self.solution.get('allocation_matrix', {})
+        crops_planted = len([c for c in allocation.values() if sum(c.values()) > 0])
+        total_crops_available = len(self.problem.crops)
+        
+        diversity_pct = (crops_planted / total_crops_available * 100) if total_crops_available > 0 else 0
+        
+        text = f"""
+Crops Planted: {crops_planted} out of {total_crops_available} available
+Diversity Index: {diversity_pct:.1f}%
+Minimum Required: {self.problem.constraints.min_crop_diversity}
+
+"""
+        if crops_planted >= self.problem.constraints.min_crop_diversity:
+            text += "✅ Diversity requirement met!"
+        else:
+            text += "⚠️ Below minimum diversity requirement!"
+        
+        if diversity_pct > 70:
+            text += "\n💡 Good crop diversification reduces risk."
+        elif diversity_pct < 40:
+            text += "\n⚠️ Consider more diversity to reduce market risk."
+        
+        self.diversity_text.setText(text.strip())
+    
+    def generate_recommendations(self):
+        """Generate actionable recommendations"""
+        if not self.solution or not self.problem:
+            return
+        
+        recommendations = []
+        
+        # Analyze bottlenecks
+        land_used = self.solution.get('total_area', 0)
+        land_available = sum(p.area for p in self.problem.parcels)
+        land_util = (land_used / land_available * 100) if land_available > 0 else 0
+        
+        water_used = self.solution.get('total_water', 0)
+        water_available = self.problem.constraints.total_water
+        water_util = (water_used / water_available * 100) if water_available > 0 else 0
+        
+        labor_used = self.solution.get('total_labor', 0)
+        labor_available = self.problem.constraints.total_labor_hours
+        labor_util = (labor_used / labor_available * 100) if labor_available > 0 else 0
+        
+        budget_used = self.solution.get('total_cost', 0)
+        budget_available = self.problem.constraints.total_budget
+        budget_util = (budget_used / budget_available * 100) if budget_available > 0 else 0
+        
+        # Generate recommendations based on utilization
+        if water_util > 90:
+            recommendations.append("💧 Water is your main constraint. Consider:\n   - Installing efficient irrigation systems\n   - Choosing drought-resistant crop varieties")
+        
+        if labor_util > 90:
+            recommendations.append("👷 Labor is limiting. Consider:\n   - Hiring additional seasonal workers\n   - Mechanizing labor-intensive operations")
+        
+        if budget_util > 90:
+            recommendations.append("💰 Budget is tight. Consider:\n   - Seeking additional financing\n   - Prioritizing high-ROI crops")
+        
+        if land_util < 70:
+            recommendations.append(f"📍 Only {land_util:.0f}% of land is used. Consider:\n   - Expanding production on unused parcels\n   - Reviewing crop-soil compatibility")
+        
+        # Rotation recommendation
+        if self.problem.enable_rotation:
+            recommendations.append("🔄 Crop rotation is enabled - good for soil health!")
+        else:
+            recommendations.append("💡 Consider enabling crop rotation to improve long-term soil fertility")
+        
+        # Profitability recommendation
+        total_profit = self.solution.get('total_profit', 0)
+        roi = ((total_profit - budget_used) / budget_used * 100) if budget_used > 0 else 0
+        if roi > 50:
+            recommendations.append(f"🎉 Excellent ROI of {roi:.1f}%! Your plan is highly profitable.")
+        elif roi < 20:
+            recommendations.append(f"⚠️ Low ROI of {roi:.1f}%. Review crop selection and resource allocation.")
+        
+        text = "\n\n".join(recommendations) if recommendations else "No specific recommendations at this time."
+        self.recommendations_text.setText(text)
 
 
 class AgriculturalOptimizerGUI(QMainWindow):
@@ -682,25 +1234,33 @@ class AgriculturalOptimizerGUI(QMainWindow):
         super().__init__()
         self.problem = None
         self.solution = None
+        self.current_theme = "light"
         self.init_ui()
     
     def init_ui(self):
         """Initialize the main application interface"""
-        self.setWindowTitle("Agricultural Production Optimizer")
+        self.setWindowTitle("🌾 Agricultural Production Optimizer")
         self.setWindowIcon(QtGui.QIcon())
-        self.setGeometry(100, 100, 1400, 900)
+        self.setGeometry(100, 100, 1500, 950)
+        
+        # Apply modern stylesheet
+        self.apply_theme()
         
         # Central widget with tabs
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
         layout = QVBoxLayout()
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
         
         # Main tab widget
         self.main_tabs = QTabWidget()
+        self.main_tabs.setDocumentMode(True)
         
         # Tab 1: Input Data
         self.input_widget = InputDataWidget()
+        self.input_widget.scenario_loaded.connect(self.on_scenario_loaded)
         self.main_tabs.addTab(self.input_widget, "📊 Input Data")
         
         # Tab 2: Solver Control
@@ -711,6 +1271,10 @@ class AgriculturalOptimizerGUI(QMainWindow):
         # Tab 3: Results
         self.results_widget = ResultsWidget()
         self.main_tabs.addTab(self.results_widget, "📈 Results")
+        
+        # Tab 4: Insights
+        self.insights_widget = InsightsWidget()
+        self.main_tabs.addTab(self.insights_widget, "💡 Insights")
         
         layout.addWidget(self.main_tabs)
         
@@ -754,6 +1318,15 @@ class AgriculturalOptimizerGUI(QMainWindow):
         exit_action = file_menu.addAction("Exit")
         exit_action.triggered.connect(self.close)
         
+        # Theme menu
+        theme_menu = menubar.addMenu("Theme")
+        
+        light_action = theme_menu.addAction("Light Theme")
+        light_action.triggered.connect(lambda: self.switch_theme("light"))
+        
+        dark_action = theme_menu.addAction("Dark Theme")
+        dark_action.triggered.connect(lambda: self.switch_theme("dark"))
+        
         # Help menu
         help_menu = menubar.addMenu("Help")
         
@@ -769,8 +1342,15 @@ class AgriculturalOptimizerGUI(QMainWindow):
         if self.solver_widget.worker and self.solver_widget.worker.solution:
             self.solution = self.solver_widget.worker.solution
             self.results_widget.display_results(problem, self.solution)
+            self.insights_widget.display_insights(problem, self.solution)
             self.main_tabs.setCurrentIndex(2)  # Switch to results tab
             self.statusBar().showMessage("Solution ready for viewing")
+    
+    def on_scenario_loaded(self, problem: AgriculturalProblem):
+        """Handle scenario loaded from CSV files"""
+        self.problem = problem
+        self.solver_widget.set_problem(problem)
+        self.statusBar().showMessage(f"Scenario loaded with {len(problem.crops)} crops and {len(problem.parcels)} parcels")
     
     def load_problem_from_input(self):
         """Load problem from input widget"""
@@ -873,6 +1453,546 @@ class AgriculturalOptimizerGUI(QMainWindow):
             "Version: 1.0\n"
             "Built for Operations Research Project"
         )
+    
+    def switch_theme(self, theme: str):
+        """Switch between light and dark themes"""
+        self.current_theme = theme
+        self.apply_theme()
+    
+    def apply_theme(self):
+        """Apply the current theme stylesheet"""
+        if self.current_theme == "dark":
+            self.setStyleSheet(self.get_dark_theme_stylesheet())
+        else:
+            self.setStyleSheet(self.get_light_theme_stylesheet())
+    
+    def get_light_theme_stylesheet(self) -> str:
+        """Return the light theme stylesheet"""
+        return """
+            QMainWindow {
+                background-color: #f5f7fa;
+            }
+            QTabWidget::pane {
+                border: none;
+                background: white;
+                border-radius: 8px;
+                margin-top: -1px;
+            }
+            QTabWidget::tab-bar {
+                alignment: left;
+            }
+            QTabBar {
+                border: none;
+            }
+            QTabBar::tab {
+                background: #e8ecf1;
+                color: #546e7a;
+                padding: 12px 24px;
+                margin-right: 4px;
+                border: none;
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+                font-weight: 500;
+                font-size: 11pt;
+            }
+            QTabBar::tab:selected {
+                background: white;
+                color: #3498db;
+                border: none;
+            }
+            QTabBar::tab:hover {
+                background: #d4dce6;
+            }
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 6px;
+                font-weight: 500;
+                font-size: 10pt;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #bdc3c7;
+            }
+            QGroupBox {
+                border: 2px solid #e8ecf1;
+                border-radius: 8px;
+                margin-top: 12px;
+                padding-top: 10px;
+                background: white;
+                font-weight: 600;
+                font-size: 10pt;
+                color: #546e7a;
+            }
+            QGroupBox#scenarioGroup {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f8f9fa, stop:1 #ffffff);
+                border: 2px solid #3498db;
+                font-size: 11pt;
+                color: #37474f;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 8px;
+            }
+            QTableWidget {
+                border: 1px solid #e8ecf1;
+                border-radius: 6px;
+                background-color: white;
+                gridline-color: #ecf0f1;
+                color: #546e7a;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                background-color: white;
+                color: #546e7a;
+            }
+            QTableWidget::item:selected {
+                background-color: #e3f2fd;
+                color: #1976d2;
+            }
+            QTableWidget::item:alternate {
+                background-color: #f8f9fa;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 10px 8px;
+                border: none;
+                font-weight: 600;
+                font-size: 10pt;
+            }
+            QHeaderView::section:horizontal {
+                border-right: 1px solid #2980b9;
+            }
+            QHeaderView::section:vertical {
+                background-color: #3498db;
+                color: white;
+                border: none;
+            }
+            QTableCornerButton::section {
+                background-color: #3498db;
+                border: none;
+            }
+            QTextEdit, QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+                border: 1px solid #d1d9e6;
+                border-radius: 6px;
+                padding: 6px;
+                background: white;
+                font-size: 10pt;
+                color: #546e7a;
+            }
+            QTextEdit:focus, QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+                border: 2px solid #3498db;
+            }
+            QComboBox::drop-down {
+                border: none;
+                padding-right: 8px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #546e7a;
+                width: 0px;
+                height: 0px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: white;
+                border: 1px solid #d1d9e6;
+                selection-background-color: #3498db;
+                selection-color: white;
+                color: #546e7a;
+                outline: none;
+            }
+            QComboBox QAbstractItemView::item {
+                padding: 8px;
+                background-color: white;
+                color: #546e7a;
+            }
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #e3f2fd;
+                color: #1976d2;
+            }
+            QComboBox QAbstractItemView::item:selected {
+                background-color: #3498db;
+                color: white;
+            }
+            QLabel {
+                color: #546e7a;
+                font-size: 10pt;
+            }
+            QProgressBar {
+                border: 2px solid #e8ecf1;
+                border-radius: 6px;
+                text-align: center;
+                background: white;
+            }
+            QProgressBar::chunk {
+                background-color: #3498db;
+                border-radius: 4px;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background: #f8f9fa;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background: #bdc3c7;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #95a5a6;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            QTextEdit#insightText {
+                background: white;
+                border: 1px solid #e8ecf1;
+                font-size: 10pt;
+                color: #37474f;
+            }
+            QGroupBox#efficiencyGroup {
+                font-weight: bold;
+                margin-top: 20px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #fff9e6, stop:1 #ffffff);
+                border: 2px solid #f39c12;
+            }
+            QGroupBox#bottleneckGroup {
+                font-weight: bold;
+                margin-top: 20px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffebee, stop:1 #ffffff);
+                border: 2px solid #e74c3c;
+            }
+            QGroupBox#cropPerformanceGroup {
+                font-weight: bold;
+                margin-top: 20px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #e8f5e9, stop:1 #ffffff);
+                border: 2px solid #27ae60;
+            }
+            QGroupBox#landGroup {
+                font-weight: bold;
+                margin-top: 20px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #e3f2fd, stop:1 #ffffff);
+                border: 2px solid #3498db;
+            }
+            QGroupBox#diversityGroup {
+                font-weight: bold;
+                margin-top: 20px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f3e5f5, stop:1 #ffffff);
+                border: 2px solid #9b59b6;
+            }
+            QGroupBox#recommendationsGroup {
+                font-weight: bold;
+                margin-top: 20px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #fff3e0, stop:1 #ffffff);
+                border: 2px solid #ff9800;
+            }
+            QGroupBox#solverStatusGroup, QGroupBox#solverSettingsGroup, QGroupBox#solverActionsGroup {
+                background: white;
+                border: 2px solid #e8ecf1;
+                font-size: 11pt;
+                padding-top: 15px;
+            }
+            QLabel#solverStatusLabel {
+                font-size: 12pt;
+                color: #27ae60;
+                font-weight: 600;
+                padding: 10px;
+            }
+            QGroupBox#exportGroup {
+                background: white;
+                border: 2px solid #e8ecf1;
+                font-size: 10pt;
+                margin-top: 10px;
+            }
+        """
+    
+    def get_dark_theme_stylesheet(self) -> str:
+        """Return the dark theme stylesheet"""
+        return """
+            QMainWindow {
+                background-color: #1e1e1e;
+            }
+            QTabWidget::pane {
+                border: none;
+                background: #2d2d2d;
+                border-radius: 8px;
+                margin-top: -1px;
+            }
+            QTabWidget::tab-bar {
+                alignment: left;
+            }
+            QTabBar {
+                border: none;
+            }
+            QTabBar::tab {
+                background: #252525;
+                color: #b0b0b0;
+                padding: 12px 24px;
+                margin-right: 4px;
+                border: none;
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+                font-weight: 500;
+                font-size: 11pt;
+            }
+            QTabBar::tab:selected {
+                background: #2d2d2d;
+                color: #58a6ff;
+                border: none;
+            }
+            QTabBar::tab:hover {
+                background: #333333;
+            }
+            QPushButton {
+                background-color: #238636;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 6px;
+                font-weight: 500;
+                font-size: 10pt;
+            }
+            QPushButton:hover {
+                background-color: #2ea043;
+            }
+            QPushButton:pressed {
+                background-color: #1a6a26;
+            }
+            QPushButton:disabled {
+                background-color: #484f58;
+            }
+            QGroupBox {
+                border: 2px solid #373737;
+                border-radius: 8px;
+                margin-top: 12px;
+                padding-top: 10px;
+                background: #2d2d2d;
+                font-weight: 600;
+                font-size: 10pt;
+                color: #c9d1d9;
+            }
+            QGroupBox#scenarioGroup {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #2d2d2d, stop:1 #252525);
+                border: 2px solid #1f6feb;
+                font-size: 11pt;
+                color: #c9d1d9;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 8px;
+            }
+            QTableWidget {
+                border: 1px solid #373737;
+                border-radius: 6px;
+                background-color: #2d2d2d;
+                gridline-color: #373737;
+                color: #c9d1d9;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                background-color: #2d2d2d;
+                color: #c9d1d9;
+            }
+            QTableWidget::item:selected {
+                background-color: #1f6feb;
+                color: white;
+            }
+            QTableWidget::item:alternate {
+                background-color: #252525;
+            }
+            QHeaderView::section {
+                background-color: #1f6feb;
+                color: white;
+                padding: 10px 8px;
+                border: none;
+                font-weight: 600;
+                font-size: 10pt;
+            }
+            QHeaderView::section:horizontal {
+                border-right: 1px solid #1658d3;
+            }
+            QHeaderView::section:vertical {
+                background-color: #1f6feb;
+                color: white;
+                border: none;
+            }
+            QTableCornerButton::section {
+                background-color: #1f6feb;
+                border: none;
+            }
+            QTextEdit, QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+                border: 1px solid #373737;
+                border-radius: 6px;
+                padding: 6px;
+                background: #2d2d2d;
+                font-size: 10pt;
+                color: #c9d1d9;
+            }
+            QTextEdit:focus, QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+                border: 2px solid #58a6ff;
+            }
+            QComboBox::drop-down {
+                border: none;
+                padding-right: 8px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #c9d1d9;
+                width: 0px;
+                height: 0px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2d2d2d;
+                border: 1px solid #373737;
+                selection-background-color: #1f6feb;
+                selection-color: white;
+                color: #c9d1d9;
+                outline: none;
+            }
+            QComboBox QAbstractItemView::item {
+                padding: 8px;
+                background-color: #2d2d2d;
+                color: #c9d1d9;
+            }
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #373737;
+                color: #58a6ff;
+            }
+            QComboBox QAbstractItemView::item:selected {
+                background-color: #1f6feb;
+                color: white;
+            }
+            QLabel {
+                color: #c9d1d9;
+                font-size: 10pt;
+            }
+            QProgressBar {
+                border: 2px solid #373737;
+                border-radius: 6px;
+                text-align: center;
+                background: #2d2d2d;
+                color: #c9d1d9;
+            }
+            QProgressBar::chunk {
+                background-color: #238636;
+                border-radius: 4px;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background: #1e1e1e;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background: #484f58;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #6e7681;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            QMenuBar {
+                background-color: #2d2d2d;
+                color: #c9d1d9;
+            }
+            QMenuBar::item:selected {
+                background-color: #373737;
+            }
+            QMenu {
+                background-color: #2d2d2d;
+                color: #c9d1d9;
+                border: 1px solid #373737;
+            }
+            QMenu::item:selected {
+                background-color: #1f6feb;
+            }
+            QTextEdit#insightText {
+                background: #2d2d2d;
+                border: 1px solid #373737;
+                font-size: 10pt;
+                color: #c9d1d9;
+            }
+            QGroupBox#efficiencyGroup {
+                font-weight: bold;
+                margin-top: 20px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #3a3000, stop:1 #2d2d2d);
+                border: 2px solid #f39c12;
+                color: #c9d1d9;
+            }
+            QGroupBox#bottleneckGroup {
+                font-weight: bold;
+                margin-top: 20px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #3a1a1a, stop:1 #2d2d2d);
+                border: 2px solid #e74c3c;
+                color: #c9d1d9;
+            }
+            QGroupBox#cropPerformanceGroup {
+                font-weight: bold;
+                margin-top: 20px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1a3a1a, stop:1 #2d2d2d);
+                border: 2px solid #27ae60;
+                color: #c9d1d9;
+            }
+            QGroupBox#landGroup {
+                font-weight: bold;
+                margin-top: 20px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1a2a3a, stop:1 #2d2d2d);
+                border: 2px solid #3498db;
+                color: #c9d1d9;
+            }
+            QGroupBox#diversityGroup {
+                font-weight: bold;
+                margin-top: 20px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #2d1a3a, stop:1 #2d2d2d);
+                border: 2px solid #9b59b6;
+                color: #c9d1d9;
+            }
+            QGroupBox#recommendationsGroup {
+                font-weight: bold;
+                margin-top: 20px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #3a2a1a, stop:1 #2d2d2d);
+                border: 2px solid #ff9800;
+                color: #c9d1d9;
+            }
+            QGroupBox#solverStatusGroup, QGroupBox#solverSettingsGroup, QGroupBox#solverActionsGroup {
+                background: #2d2d2d;
+                border: 2px solid #373737;
+                font-size: 11pt;
+                padding-top: 15px;
+                color: #c9d1d9;
+            }
+            QLabel#solverStatusLabel {
+                font-size: 12pt;
+                color: #27ae60;
+                font-weight: 600;
+                padding: 10px;
+            }
+            QGroupBox#exportGroup {
+                background: #2d2d2d;
+                border: 2px solid #373737;
+                font-size: 10pt;
+                margin-top: 10px;
+                color: #c9d1d9;
+            }
+        """
 
 
 def main():

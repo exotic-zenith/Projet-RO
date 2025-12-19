@@ -1,0 +1,4 @@
+name,profit_per_hectare,water_requirement,labor_hours,cost_per_hectare,growth_duration_days,preferred_soil_types,planting_season,min_area,max_area,rotation_group,fertilizer_need,pesticide_need
+Wheat,2500,300,25,800,120,"loamy,clay",fall,0,,2,150,5
+Corn,3200,450,35,1200,90,"loamy,sandy",spring,0,,2,200,8
+Tomato,5500,600,60,2000,75,"loamy,silty",spring,0,,3,250,12
